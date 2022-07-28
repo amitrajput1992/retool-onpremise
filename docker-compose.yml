@@ -11,19 +11,11 @@ services:
       - DB_CONNECTOR_PORT=3002
       - DB_SSH_CONNECTOR_HOST=http://db-ssh-connector
       - DB_SSH_CONNECTOR_PORT=3002
-    networks:
-      - frontend-network
-      - backend-network
-      - db-connector-network
-      - db-ssh-connector-network
     depends_on:
-      - postgres
       - db-connector
       - db-ssh-connector
       - jobs-runner
     command: bash -c "./docker_scripts/wait-for-it.sh postgres:5432; ./docker_scripts/start_api.sh"
-    links:
-      - postgres
     ports:
       - '3000:3000'
     restart: on-failure
@@ -33,20 +25,6 @@ services:
       - ./retool:/usr/local/retool-git-repo
       - ${BOOTSTRAP_SOURCE:-./retool}:/usr/local/retool-repo
 
-  test-runner:
-    build:
-      context: testing
-    networks:
-      - frontend-network
-    depends_on:
-      - api
-    profiles:
-      - testing
-    volumes:
-      - ./retool:/usr/local/retool-git-repo
-      - ${BOOTSTRAP_SOURCE:-./retool}:/usr/local/retool-repo
-    ipc: host
-
   jobs-runner:
     build:
       context: ./
@@ -54,13 +32,7 @@ services:
     env_file: ./docker.env
     environment:
       - SERVICE_TYPE=JOBS_RUNNER
-    networks:
-      - backend-network
-    depends_on:
-      - postgres
     command: bash -c "chmod -R +x ./docker_scripts; sync; ./docker_scripts/wait-for-it.sh postgres:5432; ./docker_scripts/start_api.sh"
-    links:
-      - postgres
     volumes:
       - ./keys:/root/.ssh
       
@@ -72,8 +44,6 @@ services:
     env_file: ./docker.env
     environment:
       - SERVICE_TYPE=DB_CONNECTOR_SERVICE
-    networks:
-      - db-connector-network
     restart: on-failure
 
   db-ssh-connector:
@@ -84,22 +54,10 @@ services:
     env_file: ./docker.env
     environment:
       - SERVICE_TYPE=DB_SSH_CONNECTOR_SERVICE
-    networks:
-      - db-ssh-connector-network
     volumes:
       - ssh:/retool_backend/autogen_ssh_keys
       - ./keys:/retool_backend/keys
     restart: on-failure
-
-  # Retool's storage database. See these docs to migrate to an externally hosted database: https://docs.retool.com/docs/configuring-retools-storage-database
-  postgres:
-    image: 'postgres:11.13'
-    env_file: docker.env
-    networks:
-      - backend-network
-      - db-connector-network
-    volumes:
-      - data:/var/lib/postgresql/data
 
   # Not required, but leave this container to use nginx for handling the frontend & SSL certification
   https-portal:
@@ -118,14 +76,10 @@ services:
       PROXY_CONNECT_TIMEOUT: 600
       PROXY_SEND_TIMEOUT: 600
       PROXY_READ_TIMEOUT: 600
-    networks:
-      - frontend-network
 
 networks:
-  frontend-network:
-  backend-network:
-  db-connector-network:
-  db-ssh-connector-network:
+  default:
+    name: teaxr
 
 volumes:
   ssh:
